@@ -1,7 +1,9 @@
 ﻿using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
+using DiscordBotTest.Main.Extensions;
 using DiscordBotTest.Main.Helpers;
+using DiscordBotTest.Main.Services.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
@@ -32,19 +34,19 @@ namespace DiscordBotTest.Main
             _clientDiscord = new DiscordSocketClient(new DiscordSocketConfig
             {
                 GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.MessageContent,
-                MessageCacheSize = 100
             });
 
             _commandsDiscord = new CommandService(new CommandServiceConfig
             {
                 LogLevel = LogSeverity.Debug,
-                CaseSensitiveCommands = false
+                CaseSensitiveCommands = true
             });
 
             _servicesProvider =
                new ServiceCollection()
                    .AddSingleton(_clientDiscord)
                    .AddSingleton(_commandsDiscord)
+                   .AddGeminiApp(configuration)
                    .BuildServiceProvider();
 
             _clientDiscord.Log += LogAsync;
@@ -94,11 +96,31 @@ namespace DiscordBotTest.Main
             }
 
             int argPositionIndex = 0;
-            if (message.HasStringPrefix("!", ref argPositionIndex))
+            if (message.Content.StartsWith("!prompt"))
             {
+                var geminiService = _servicesProvider.GetService<IGeminiService>();
+
+                var result = await geminiService.ProcessPromptAsync(message.Content.RemoveStringFromStart("!prompt").Trim());
+
+                await context.Channel.SendMessageAsync(result);
+            }
+            else if (message.HasStringPrefix("!", ref argPositionIndex))
+            {
+                var isCommandStr = ModulesDiscord.IsValidCommandForTheModuleProcess(message.Content);
+
+                if (!isCommandStr)
+                {
+                    Console.WriteLine(BuildLogString($"Não é um comando válido a string: {message.Content}"));
+                    await context.Channel.SendMessageAsync($"Comando inválido, lista de comandos válidos: {ModulesDiscord.GetCommandsValids()}");
+                    return;
+                }
+
                 var result = await _commandsDiscord.ExecuteAsync(context, argPositionIndex, _servicesProvider);
                 if (!result.IsSuccess)
+                {
                     Console.WriteLine(BuildLogString($"Erro na execução de comando: {result.ErrorReason}"));
+                    await context.Channel.SendMessageAsync($"Erro na execução de comando: {result.ErrorReason}");
+                }
             }
         }
     }
