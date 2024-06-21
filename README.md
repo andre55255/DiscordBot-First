@@ -4,6 +4,7 @@ Para rodar, criar um arquivo de appsettings.json na raiz do projeto DiscordBotTe
 
 ```json
 {
-  "DiscordToken": "token do bot"
+  "BotDiscordToken": "token do bot",
+  "GeminiToken" "api key gemini AI Google"
 }
 ```
